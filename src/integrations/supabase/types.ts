@@ -14,7 +14,272 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      agent_logs: {
+        Row: {
+          action: string
+          agent: Database["public"]["Enums"]["agent_name"]
+          created_at: string
+          id: string
+          payload: Json | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          action: string
+          agent: Database["public"]["Enums"]["agent_name"]
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          action?: string
+          agent?: Database["public"]["Enums"]["agent_name"]
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      business_data: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          parsed_json: Json | null
+          raw_csv: string | null
+          summary: Json | null
+          type: Database["public"]["Enums"]["business_data_type"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          parsed_json?: Json | null
+          raw_csv?: string | null
+          summary?: Json | null
+          type: Database["public"]["Enums"]["business_data_type"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          parsed_json?: Json | null
+          raw_csv?: string | null
+          summary?: Json | null
+          type?: Database["public"]["Enums"]["business_data_type"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      customer_tickets: {
+        Row: {
+          ai_reply: string | null
+          channel: Database["public"]["Enums"]["ticket_channel"]
+          created_at: string
+          customer_handle: string
+          external_id: string | null
+          id: string
+          message: string
+          status: Database["public"]["Enums"]["ticket_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_reply?: string | null
+          channel: Database["public"]["Enums"]["ticket_channel"]
+          created_at?: string
+          customer_handle: string
+          external_id?: string | null
+          id?: string
+          message: string
+          status?: Database["public"]["Enums"]["ticket_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_reply?: string | null
+          channel?: Database["public"]["Enums"]["ticket_channel"]
+          created_at?: string
+          customer_handle?: string
+          external_id?: string | null
+          id?: string
+          message?: string
+          status?: Database["public"]["Enums"]["ticket_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      pending_orders: {
+        Row: {
+          created_at: string
+          customer_handle: string | null
+          id: string
+          product_id: string | null
+          product_name: string
+          qty: number
+          status: Database["public"]["Enums"]["order_status"]
+          ticket_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          customer_handle?: string | null
+          id?: string
+          product_id?: string | null
+          product_name: string
+          qty?: number
+          status?: Database["public"]["Enums"]["order_status"]
+          ticket_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          customer_handle?: string | null
+          id?: string
+          product_id?: string | null
+          product_name?: string
+          qty?: number
+          status?: Database["public"]["Enums"]["order_status"]
+          ticket_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_orders_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_orders_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "customer_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_catalog: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price: number | null
+          stock: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price?: number | null
+          stock?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price?: number | null
+          stock?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          business_name: string | null
+          created_at: string
+          display_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          business_name?: string | null
+          created_at?: string
+          display_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          business_name?: string | null
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      social_posts: {
+        Row: {
+          caption: string
+          created_at: string
+          external_post_id: string | null
+          hashtags: string[] | null
+          id: string
+          image_url: string | null
+          platform: string
+          product_id: string | null
+          scheduled_at: string | null
+          status: Database["public"]["Enums"]["post_status"]
+          user_id: string
+        }
+        Insert: {
+          caption: string
+          created_at?: string
+          external_post_id?: string | null
+          hashtags?: string[] | null
+          id?: string
+          image_url?: string | null
+          platform: string
+          product_id?: string | null
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["post_status"]
+          user_id: string
+        }
+        Update: {
+          caption?: string
+          created_at?: string
+          external_post_id?: string | null
+          hashtags?: string[] | null
+          id?: string
+          image_url?: string | null
+          platform?: string
+          product_id?: string | null
+          scheduled_at?: string | null
+          status?: Database["public"]["Enums"]["post_status"]
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "social_posts_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "product_catalog"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +288,12 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      agent_name: "finn" | "mira" | "cara"
+      business_data_type: "expense" | "earning" | "inventory"
+      order_status: "pending" | "approved" | "rejected" | "fulfilled"
+      post_status: "draft" | "scheduled" | "published"
+      ticket_channel: "whatsapp" | "shopee" | "telegram"
+      ticket_status: "open" | "replied" | "closed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +420,13 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      agent_name: ["finn", "mira", "cara"],
+      business_data_type: ["expense", "earning", "inventory"],
+      order_status: ["pending", "approved", "rejected", "fulfilled"],
+      post_status: ["draft", "scheduled", "published"],
+      ticket_channel: ["whatsapp", "shopee", "telegram"],
+      ticket_status: ["open", "replied", "closed"],
+    },
   },
 } as const
