@@ -5,12 +5,21 @@ import { Sparkles, LayoutDashboard, LineChart, Megaphone, MessagesSquare, LogOut
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const nav = [
+type NavItem = {
+  to: "/" | "/finance" | "/marketing" | "/support";
+  label: string;
+  icon: typeof LayoutDashboard;
+  exact?: boolean;
+  agent?: string;
+  color?: string;
+};
+
+const nav: NavItem[] = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, exact: true },
   { to: "/finance", label: "Finance", icon: LineChart, agent: "Finn", color: "var(--finn)" },
   { to: "/marketing", label: "Marketing", icon: Megaphone, agent: "Mira", color: "var(--mira)" },
   { to: "/support", label: "Support", icon: MessagesSquare, agent: "Cara", color: "var(--cara)" },
-] as const;
+];
 
 export function AppShell() {
   const { user, loading, signOut } = useAuth();
@@ -56,7 +65,7 @@ export function AppShell() {
               >
                 <Icon className="w-4 h-4" />
                 <span className="flex-1">{item.label}</span>
-                {"agent" in item && item.agent && (
+                {item.agent && (
                   <span
                     className="text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded"
                     style={{ color: item.color, background: `color-mix(in oklab, ${item.color} 14%, transparent)` }}
