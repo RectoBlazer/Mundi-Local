@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { getGeminiApiKey, getSupabaseEnv } from "../_shared/env.ts";
+import { geminiGenerateJson } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,10 +44,8 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const SUPABASE_URL = Deno.env.get("SB_URL")!;
-    const ANON_KEY = Deno.env.get("SB_ANON_KEY") ?? Deno.env.get("SB_PUBLISHABLE_KEY")!;
-    const SERVICE_KEY = Deno.env.get("SB_SERVICE_ROLE_KEY")!;
-    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY")!;
+    const { url: SB_URL, anonKey: SB_ANON_KEY, serviceRoleKey: SB_SERVICE_ROLE_KEY } = getSupabaseEnv();
+    const GEMINI_API_KEY = getGeminiApiKey();
 
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return jsonResponse({ error: "Missing authorization" }, 401);
@@ -55,7 +55,7 @@ Deno.serve(async (req: Request) => {
     if (!ticket_id) return jsonResponse({ error: "Missing ticket_id" }, 400);
 
     // User-scoped read
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
+    const userClient = createClient(SB_URL, SB_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
 
@@ -73,48 +73,19 @@ Deno.serve(async (req: Request) => {
 
     const userText = `Channel: ${ticket.channel}\nCustomer: ${ticket.customer_handle}\nMessage: ${ticket.message}`;
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        response_format: { type: "json_object" },
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userText },
-        ],
-      }),
+    const parsed = await geminiGenerateJson<{
+      reply: string;
+      buy_intent: boolean;
+      confidence: number;
+      product_name: string | null;
+      qty: number | null;
+    }>({
+      apiKey: GEMINI_API_KEY,
+      model: "gemini-2.5-flash",
+      system: SYSTEM_PROMPT,
+      userText,
+      maxRetries: 1,
     });
-
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("AI gateway error", aiRes.status, errText);
-      if (aiRes.status === 429) return jsonResponse({ error: "Rate limit, try again shortly" }, 429);
-      if (aiRes.status === 402) {
-        return jsonResponse({ error: "AI credits exhausted. Add credits to Lovable workspace." }, 402);
-      }
-      return jsonResponse({ error: "AI generation failed" }, 500);
-    }
-
-    const aiJson = await aiRes.json();
-    const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
-
-    let parsed: {
-      reply?: unknown;
-      buy_intent?: unknown;
-      confidence?: unknown;
-      product_name?: unknown;
-      qty?: unknown;
-    } = {};
-
-    try {
-      parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
-    } catch {
-      parsed = {};
-    }
 
     const reply = typeof parsed.reply === "string" ? parsed.reply : "";
     const buy_intent = Boolean(parsed.buy_intent);
@@ -122,7 +93,7 @@ Deno.serve(async (req: Request) => {
     const product_name = typeof parsed.product_name === "string" ? parsed.product_name : null;
     const qty = typeof parsed.qty === "number" && Number.isFinite(parsed.qty) ? Math.max(1, Math.floor(parsed.qty)) : null;
 
-    const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+    const admin = createClient(SB_URL, SB_SERVICE_ROLE_KEY);
 
     // Persist draft reply onto the ticket (matches migration: customer_tickets.ai_reply)
     if (reply) {
@@ -136,7 +107,6 @@ Deno.serve(async (req: Request) => {
 
       if (updErr) {
         console.error("customer_tickets update error", updErr);
-        // don't fail the whole request; still return the reply
       }
     }
 
