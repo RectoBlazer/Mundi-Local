@@ -181,5 +181,3 @@ Click **Publish** in the top-right of the Lovable editor. Frontend changes need 
 - Forecasting & anomaly alerts in Finn
 
 ---
-
-Built with ❤ on [Lovable](https://lovable.dev).
