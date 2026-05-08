@@ -31,6 +31,100 @@ export type GeminiGenerateJsonParams = {
   maxRetries?: number;
 };
 
+// add generateImage helper
+export async function generateImage(
+  adminClient: any,
+  userId: string,
+  productId: string,
+  platform: string,
+  productName: string,
+  productImageUrl: string,
+  adVisual: string
+) {
+  const SB_URL = Deno.env.get("SUPABASE_URL") ?? "";
+  const imageUrl = productImageUrl
+    .replace(/^http:\/\/127\.0\.0\.1:54321/i, SB_URL)
+    .replace(/^http:\/\/localhost:54321/i, SB_URL);
+
+  const productImage = await fetchAsBase64(imageUrl);
+
+  const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+  if (!GEMINI_API_KEY) {
+    console.error("GEMINI_API_KEY not set");
+    return null;
+  }
+
+  const imgPrompt = `Create a high-impact ${platform} ad image for the product "${productName}".
+Use the attached product photo as the source — keep the product's true shape, color, and details accurate.
+Place it in an engaging scene: ${adVisual ?? "studio lighting, vibrant background, modern lifestyle styling"}.
+Add a small, tasteful text overlay with the product name "${productName}". Avoid extra text. Square 1:1, photoreal, polished commercial look.`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${encodeURIComponent(GEMINI_API_KEY)}`;
+
+  const body = {
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: imgPrompt },
+          {
+            inlineData: {
+              mimeType: productImage.mimeType,
+              data: productImage.dataBase64,
+            },
+          },
+        ],
+      },
+    ],
+    generationConfig: {
+      responseModalities: ["Text", "Image"], // REQUIRED for image generation
+      temperature: 0.4,
+    },
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const txt = await res.text();
+    console.error("Gemini image gen failed:", res.status, txt);
+    return null;
+  }
+
+  const json = await res.json();
+  
+  // Gemini returns generated images as inlineData parts in the response
+  const parts = json?.candidates?.[0]?.content?.parts ?? [];
+  
+  for (const part of parts) {
+    if (part.inlineData?.mimeType?.startsWith("image/")) {
+      const mime = part.inlineData.mimeType;
+      const b64 = part.inlineData.data;
+      const ext = mime.split("/")[1].replace("jpeg", "jpg");
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const path = `${userId}/ads/${productId}-${Date.now()}-${platform.toLowerCase()}.${ext}`;
+      
+      const { error: upErr } = await adminClient.storage
+        .from("product-images")
+        .upload(path, bytes, { contentType: mime, upsert: true });
+        
+      if (!upErr) {
+        const { data: pub } = adminClient.storage.from("product-images").getPublicUrl(path);
+        return pub.publicUrl;
+      }
+      
+      console.error("Upload error:", upErr);
+      return null;
+    }
+  }
+
+  console.error("No image part found in Gemini response:", JSON.stringify(json, null, 2));
+  return null;
+}
+
 async function geminiGenerateContentRaw(params: GeminiGenerateJsonParams): Promise<string> {
   const { apiKey, model, system, userText, image } = params;
 

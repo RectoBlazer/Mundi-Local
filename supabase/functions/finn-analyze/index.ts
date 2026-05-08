@@ -46,16 +46,21 @@ Deno.serve(async (req) => {
     // Trim CSV to keep prompt small
     const trimmed = csv.length > 20000 ? csv.slice(0, 20000) + "\n... (truncated)" : csv;
 
-    const systemPrompt = `You are Finn, a financial analyst for small businesses. Analyze the provided CSV (transactions/expenses/earnings) and return STRICT JSON matching this TypeScript type — no markdown.
+    const systemPrompt = `You are Finn, a financial analyst for small businesses. Analyze the provided CSV (transactions/expenses/earnings) and return STRICT JSON matching this TypeScript type — no prose, no markdown, no code fences:
 
 {
   "cash_flow_health": { "score": number (0-100), "label": string (e.g. "Healthy", "At Risk", "Critical"), "commentary": string (1-2 sentences) },
   "totals": { "earnings": number, "expenses": number, "net": number, "currency": string (3-letter code, infer from data, default "MYR") },
   "waste_detection": Array<{ "category": string, "amount": number, "reason": string }>,
-  "action_plan": Array<{ "title": string, "impact": "Low" | "Medium" | "High", "effort": "Low" | "Medium" | "High" }>
+  "action_plan": Array<{ "title": string, "impact": "Low" | "Medium" | "High", "effort": "Low" | "Medium" | "High" }>,
+  "history": Array<{ "date": string (YYYY-MM-DD), "earnings": number, "expenses": number, "net": number }>,
+  "forecast": Array<{ "date": string (YYYY-MM-DD), "projected_net": number, "projected_earnings": number, "projected_expenses": number }>
 }
 
-Rules: round numbers to 2 decimals. Limit waste_detection to top 3. Limit action_plan to 4 items. Be concrete and reference the data.`;
+Rules: round numbers to 2 decimals. Limit waste_detection to top 3. Limit action_plan to 4 items. Be concrete and reference the data.
+
+For "history": aggregate the CSV by day and return one entry per day in chronological order (max 90 most-recent days). Use 0 when a side has no value.
+For "forecast": project the NEXT 30 consecutive days starting the day after the last history date. Base the projection on observed trend, seasonality (weekday patterns), and recurring categories. Return exactly 30 entries, chronological.`;
 
     const summary = await geminiGenerateJson({
       apiKey: GEMINI_API_KEY,

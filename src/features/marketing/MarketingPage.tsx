@@ -6,11 +6,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ActivityFeed } from "@/components/ActivityFeed";
-import { Loader2, Plus, Sparkles, ImageIcon, Instagram, Webhook } from "lucide-react";
+import { Loader2, Plus, Sparkles, ImageIcon, Instagram, Webhook, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Product = { id: string; name: string; description: string | null; price: number | null; stock: number; image_url: string | null };
-type GenResult = { platform: string; caption: string; hashtags: string[] }[];
+type GenResult = { platform: string; caption: string; hashtags: string[]; image_url: string | null }[];
 
 export function MarketingPage() {
   const { user } = useAuth();
@@ -77,6 +77,16 @@ export function MarketingPage() {
     }
   };
 
+  const removeProduct = async (p: Product) => {
+    if (!user) return;
+    if (!confirm(`Remove "${p.name}"? This also deletes its drafted posts.`)) return;
+    const { error } = await supabase.from("product_catalog").delete().eq("id", p.id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Product removed");
+    if (selected?.id === p.id) { setSelected(null); setResults([]); }
+    load();
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-8 py-10">
       <div className="flex items-start justify-between mb-8 fade-up">
@@ -112,10 +122,15 @@ export function MarketingPage() {
             <ul className="space-y-1">
               {products.map((p) => (
                 <li key={p.id}>
-                  <button onClick={() => { setSelected(p); setResults([]); }} className={`w-full text-left rounded-lg p-2 flex items-center gap-3 transition-colors ${selected?.id === p.id ? "bg-surface-3" : "hover:bg-surface-2"}`}>
-                    {p.image_url ? <img src={p.image_url} alt="" className="w-10 h-10 rounded-md object-cover" /> : <div className="w-10 h-10 rounded-md bg-surface-3 flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground" /></div>}
-                    <div className="min-w-0"><div className="text-sm font-medium truncate">{p.name}</div><div className="text-[10px] font-mono text-muted-foreground">stock {p.stock}</div></div>
-                  </button>
+                  <div className={`group w-full rounded-lg p-2 flex items-center gap-3 transition-colors ${selected?.id === p.id ? "bg-surface-3" : "hover:bg-surface-2"}`}>
+                    <button onClick={() => { setSelected(p); setResults([]); }} className="flex-1 min-w-0 flex items-center gap-3 text-left">
+                      {p.image_url ? <img src={p.image_url} alt="" className="w-10 h-10 rounded-md object-cover" /> : <div className="w-10 h-10 rounded-md bg-surface-3 flex items-center justify-center"><ImageIcon className="w-4 h-4 text-muted-foreground" /></div>}
+                      <div className="min-w-0"><div className="text-sm font-medium truncate">{p.name}</div><div className="text-[10px] font-mono text-muted-foreground">stock {p.stock}</div></div>
+                    </button>
+                    <button onClick={() => removeProduct(p)} aria-label="Remove product" className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-destructive/10 text-muted-foreground hover:text-destructive">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>
@@ -131,10 +146,15 @@ export function MarketingPage() {
                   <h2 className="text-xl font-semibold tracking-tight">{selected.name}</h2>
                   <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{selected.description || "No description yet."}</p>
                   <div className="mt-4">
-                    <Button onClick={generate} disabled={genBusy} className="gap-2">
-                      {genBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                      {genBusy ? "Mira is drafting…" : "Generate posts"}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button onClick={generate} disabled={genBusy} className="gap-2">
+                        {genBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                        {genBusy ? "Mira is generating ads…" : "Generate ad posts"}
+                      </Button>
+                      <Button onClick={() => removeProduct(selected)} variant="outline" className="gap-2 text-destructive hover:text-destructive">
+                        <Trash2 className="w-4 h-4" /> Remove
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -147,7 +167,7 @@ export function MarketingPage() {
                         <Instagram className="w-4 h-4" style={{ color: "var(--mira)" }} />
                         <span className="text-sm font-semibold tracking-tight">{r.platform}</span>
                       </div>
-                      {selected.image_url && <img src={selected.image_url} alt="" className="w-full aspect-square object-cover" />}
+                      {(r.image_url ?? selected.image_url) && <img src={r.image_url ?? selected.image_url!} alt="" className="w-full aspect-square object-cover" />}
                       <div className="p-4">
                         <p className="text-sm whitespace-pre-wrap text-balance">{r.caption}</p>
                         <div className="flex flex-wrap gap-1 mt-3">

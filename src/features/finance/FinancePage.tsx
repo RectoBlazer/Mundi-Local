@@ -5,12 +5,16 @@ import { Button } from "@/components/ui/button";
 import { ActivityFeed } from "@/components/ActivityFeed";
 import { Upload, Loader2, TrendingUp, TrendingDown, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine, Legend } from "recharts";
 
 type Summary = {
   cash_flow_health: { score: number; label: string; commentary: string };
   totals: { earnings: number; expenses: number; net: number; currency: string };
   waste_detection: Array<{ category: string; amount: number; reason: string }>;
   action_plan: Array<{ title: string; impact: string; effort: string }>;
+  history?: Array<{ date: string; earnings: number; expenses: number; net: number }>;
+  forecast?: Array<{ date: string; projected_net: number; projected_earnings: number; projected_expenses: number }>;
 };
 
 type Run = {
@@ -115,6 +119,44 @@ export function FinancePage() {
                   <div className="rounded-lg p-3 bg-surface-2"><div className="text-[10px] font-mono uppercase text-muted-foreground">Net</div><div className="text-lg font-semibold mt-1">{summary.totals.currency} {summary.totals.net.toLocaleString()}</div></div>
                 </div>
               </div>
+
+              {(summary.history?.length || summary.forecast?.length) ? (
+                <div className="surface-elevated rounded-xl border p-6 fade-up">
+                  <div className="flex items-baseline justify-between mb-4">
+                    <div>
+                      <h3 className="text-sm font-semibold tracking-tight">Cash Flow · 30-day Forecast</h3>
+                      <p className="text-xs text-muted-foreground mt-1">History (solid) and Finn's projection (dashed) for the next 30 days.</p>
+                    </div>
+                    <div className="text-[10px] font-mono uppercase text-muted-foreground">{summary.totals.currency}</div>
+                  </div>
+                  {(() => {
+                    const hist = (summary.history ?? []).map((h) => ({ date: h.date, net: h.net, projected: null as number | null }));
+                    const fc = (summary.forecast ?? []).map((f) => ({ date: f.date, net: null as number | null, projected: f.projected_net }));
+                    const data = [...hist, ...fc];
+                    const splitDate = hist.length ? hist[hist.length - 1].date : undefined;
+                    return (
+                      <ChartContainer
+                        config={{
+                          net: { label: "Net (history)", color: "var(--finn)" },
+                          projected: { label: "Projected net", color: "var(--warning)" },
+                        }}
+                        className="h-64 w-full"
+                      >
+                        <LineChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                          <XAxis dataKey="date" tickFormatter={(d) => new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" })} minTickGap={24} />
+                          <YAxis tickFormatter={(v) => Number(v).toLocaleString()} width={64} />
+                          <ChartTooltip content={<ChartTooltipContent indicator="line" />} />
+                          <Legend />
+                          {splitDate ? <ReferenceLine x={splitDate} stroke="var(--muted-foreground)" strokeDasharray="2 4" label={{ value: "today", position: "top", fontSize: 10 }} /> : null}
+                          <Line type="monotone" dataKey="net" stroke="var(--color-net)" strokeWidth={2} dot={false} connectNulls />
+                          <Line type="monotone" dataKey="projected" stroke="var(--color-projected)" strokeWidth={2} strokeDasharray="5 4" dot={false} connectNulls />
+                        </LineChart>
+                      </ChartContainer>
+                    );
+                  })()}
+                </div>
+              ) : null}
 
               <div className="surface-elevated rounded-xl border p-6 fade-up">
                 <div className="flex items-center gap-2 mb-4">

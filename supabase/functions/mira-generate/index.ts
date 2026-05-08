@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { getGeminiApiKey, getSupabaseEnv } from "../_shared/env.ts";
-import { fetchAsBase64, geminiGenerateJson } from "../_shared/gemini.ts";
+import { fetchAsBase64, geminiGenerateJson, generateImage } from "../_shared/gemini.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,12 +13,13 @@ Given a product (name, description, price, and image), write short, punchy posts
 Return STRICT JSON in this shape:
 {
   "posts": [
-    { "platform": "Instagram", "caption": "...", "hashtags": ["tag1","tag2"] },
-    { "platform": "TikTok", "caption": "...", "hashtags": ["tag1","tag2"] },
-    { "platform": "Facebook", "caption": "...", "hashtags": ["tag1","tag2"] }
+    { "platform": "Instagram", "caption": "...", "hashtags": ["tag1","tag2"], "ad_visual": "short visual brief for the ad image" },
+    { "platform": "TikTok", "caption": "...", "hashtags": ["tag1","tag2"], "ad_visual": "short visual brief for the ad image" },
+    { "platform": "Facebook", "caption": "...", "hashtags": ["tag1","tag2"], "ad_visual": "short visual brief for the ad image" }
   ]
 }
-Captions: 2-4 sentences, emojis welcome, end with a clear CTA. Hashtags: 5-8 lowercase, no # symbol.`;
+Captions: 2-4 sentences, emojis welcome, end with a clear CTA. Hashtags: 5-8 lowercase, no # symbol.
+ad_visual: 1-2 sentence brief describing an engaging ad scene tailored to the platform (mood, background, props, lighting). Keep the product itself unchanged.`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -33,6 +34,12 @@ Deno.serve(async (req: Request) => {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    function rewriteLocalUrl(u: string, sbUrl: string) {
+      return u
+        .replace(/^http:\/\/127\.0\.0\.1:54321/i, sbUrl)
+        .replace(/^http:\/\/localhost:54321/i, sbUrl);
     }
 
     const { product_id } = await req.json();
@@ -75,9 +82,17 @@ Price: ${product.price ?? "n/a"}
 Stock: ${product.stock}
 ${product.image_url ? "An image is attached — read the visual cues (color, style, mood) and weave them into the caption." : ""}`;
 
-    const image = product.image_url ? await fetchAsBase64(product.image_url) : undefined;
+    const imageUrl = product.image_url ? rewriteLocalUrl(product.image_url, SB_URL) : null;
+    const image = imageUrl ? await fetchAsBase64(imageUrl) : undefined;
 
-    const parsed = await geminiGenerateJson<{ posts?: { platform: string; caption: string; hashtags: string[] }[] }>({
+    const parsed = await geminiGenerateJson<{
+      posts?: {
+        platform: string;
+        caption: string;
+        hashtags: string[];
+        ad_visual?: string;
+      }[];
+    }>({
       apiKey: GEMINI_API_KEY,
       model: "gemini-2.5-flash",
       system: SYSTEM_PROMPT,
@@ -85,37 +100,65 @@ ${product.image_url ? "An image is attached — read the visual cues (color, sty
       image,
       maxRetries: 1,
     });
+// ... imports and setup above
 
-    const posts = Array.isArray(parsed.posts) ? parsed.posts : [];
+  const adminClient = createClient(SB_URL, SB_SERVICE_ROLE_KEY); // define once, before loop
 
-    const adminClient = createClient(SB_URL, SB_SERVICE_ROLE_KEY);
+  const posts = Array.isArray(parsed.posts) ? parsed.posts : [];
+  const results: any[] = [];
 
-    if (posts.length) {
-      await adminClient.from("social_posts").insert(
-        posts.map((p) => ({
-          user_id: user.id,
-          product_id: product.id,
-          platform: p.platform,
-          caption: p.caption,
-          hashtags: p.hashtags ?? [],
-          image_url: product.image_url,
-          status: "draft",
-        })),
-      );
+  for (const p of posts) {
+    let adImageUrl: string | null = product.image_url ?? null;
+    if (imageUrl && p.ad_visual) {
+      try {
+        adImageUrl = await generateImage(
+          adminClient,
+          user.id,
+          product.id,
+          p.platform,
+          product.name,
+          imageUrl,
+          p.ad_visual
+        );
+      } catch (e) {
+        console.error("ad image error", e);
+      }
     }
 
-    await adminClient.from("agent_logs").insert({
-      user_id: user.id,
-      agent: "mira",
-      action: "generate_posts",
-      status: "success",
-      payload: { product_id: product.id, count: posts.length },
-    });
+    const { data: row, error: insertErr } = await adminClient
+      .from("social_posts")
+      .insert({
+        user_id: user.id,
+        product_id: product.id,
+        platform: p.platform,
+        caption: p.caption,
+        hashtags: p.hashtags ?? [],
+        image_url: adImageUrl,
+        status: "draft",
+      })
+      .select("*")
+      .single();
+    if (insertErr) {
+      console.error("Insert error:", insertErr);
+    } else if (row) {
+      results.push(row);
+    }
+  }
 
-    return new Response(JSON.stringify({ posts }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+  await adminClient.from("agent_logs").insert({
+    user_id: user.id,
+    agent: "mira",
+    action: "generate_posts",
+    status: "success",
+    payload: { product_id: product.id, count: results.length },
+  });
+
+  return new Response(JSON.stringify({ posts: results }), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+
+
   } catch (e) {
     console.error("mira-generate error", e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
