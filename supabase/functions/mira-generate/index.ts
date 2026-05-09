@@ -8,8 +8,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SYSTEM_PROMPT = `You are Mira, a witty social-media copywriter for small businesses.
-Given a product (name, description, price, and image), write short, punchy posts for Instagram, TikTok, and Facebook.
+const SYSTEM_PROMPT = `You are Mira, a witty malaysian social-media copywriter for small businesses.
+Given a product (name, description, price(in Malaysian Ringgit), and image), write short, punchy posts for Instagram, TikTok, and Facebook in manglish.
 Return STRICT JSON in this shape:
 {
   "posts": [
@@ -100,30 +100,39 @@ ${product.image_url ? "An image is attached — read the visual cues (color, sty
       image,
       maxRetries: 1,
     });
-// ... imports and setup above
 
-  const adminClient = createClient(SB_URL, SB_SERVICE_ROLE_KEY); // define once, before loop
+  const adminClient = createClient(SB_URL, SB_SERVICE_ROLE_KEY);
 
   const posts = Array.isArray(parsed.posts) ? parsed.posts : [];
   const results: any[] = [];
 
-  for (const p of posts) {
-    let adImageUrl: string | null = product.image_url ?? null;
-    if (imageUrl && p.ad_visual) {
-      try {
-        adImageUrl = await generateImage(
-          adminClient,
-          user.id,
-          product.id,
-          p.platform,
-          product.name,
-          imageUrl,
-          p.ad_visual
-        );
-      } catch (e) {
-        console.error("ad image error", e);
-      }
+  // Generate ONE ad image before the loop 
+  let generatedAdImage: string | null = null;
+  
+  // Use the first post's ad_visual (or combine all briefs into one)
+  const firstVisual = posts.find(p => p.ad_visual)?.ad_visual;
+  
+  if (imageUrl && firstVisual) {
+    try {
+      generatedAdImage = await generateImage(
+        adminClient,
+        user.id,
+        product.id,
+        "ad",
+        product.name,
+        imageUrl,
+        firstVisual
+      );
+    } catch (e) {
+      console.error("ad image error", e);
+      // generatedAdImage stays null, will fall back to product image
     }
+  }
+
+  // Loop: reuse the single generated image for all posts ──
+  for (const p of posts) {
+    // Use generated image if available, otherwise fall back to original product image
+    const adImageUrl = generatedAdImage ?? product.image_url ?? null;
 
     const { data: row, error: insertErr } = await adminClient
       .from("social_posts")
@@ -138,6 +147,7 @@ ${product.image_url ? "An image is attached — read the visual cues (color, sty
       })
       .select("*")
       .single();
+      
     if (insertErr) {
       console.error("Insert error:", insertErr);
     } else if (row) {
