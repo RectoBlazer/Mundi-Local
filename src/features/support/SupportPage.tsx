@@ -174,6 +174,7 @@ export function SupportPage() {
   const ticketIdsWithPendingApproval = new Set(
     pendingOrders.map((o) => o.ticket_id).filter(Boolean),
   );
+  // A conversation is handled only after a reply exists and there are no pending approvals left.
   const isHandledTicket = (ticket: Ticket) =>
     ticket.status === "replied" && !ticketIdsWithPendingApproval.has(ticket.id);
   const visibleTickets = hideHandled ? tickets.filter((t) => !isHandledTicket(t)) : tickets;
@@ -249,7 +250,14 @@ export function SupportPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-wrap justify-end">
                   {o.status === "approved" ? (
-                    <Badge className="bg-emerald-600/15 text-emerald-300 border-emerald-500/40">
+                    <Badge
+                      variant="outline"
+                      className="border-transparent"
+                      style={{
+                        background: "color-mix(in oklab, var(--success) 20%, transparent)",
+                        color: "var(--success)",
+                      }}
+                    >
                       Confirmed
                     </Badge>
                   ) : (
