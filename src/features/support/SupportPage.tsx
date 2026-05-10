@@ -9,7 +9,7 @@ import { Loader2, Sparkles, Check, X, Send, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type TicketStatus = "open" | "replied" | "closed" | string;
-type OrderStatus = "pending" | "approved" | "rejected" | "fulfilled" | "confirmed" | string;
+type OrderStatus = "pending" | "approved" | "rejected" | "fulfilled" | string;
 type Ticket = {
   id: string;
   channel: "whatsapp" | "shopee" | "telegram";
@@ -258,7 +258,7 @@ export function SupportPage() {
                         color: "var(--success)",
                       }}
                     >
-                      Confirmed
+                      Approved · confirmed
                     </Badge>
                   ) : (
                     <Badge
